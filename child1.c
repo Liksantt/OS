@@ -22,26 +22,22 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Открываем файл для записи с проверкой на ошибки
     int file = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (file == -1) {
         const char *error_msg = "Ошибка: не удалось открыть файл для записи\n";
         write(STDERR_FILENO, error_msg, strlen(error_msg));
-        perror("open");  // Вывод подробной информации об ошибке
+        perror("open"); 
         return 1;
     }
 
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read;
 
-    // Чтение строк из pipe (через стандартный ввод)
     while ((bytes_read = read(STDIN_FILENO, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[bytes_read - 1] = '\0';  // Удаляем символ новой строки
+        buffer[bytes_read - 1] = '\0';  
 
-        // Инвертируем строку
         invert_string(buffer);
 
-        // Записываем результат в файл с проверкой на ошибки
         if (write(file, buffer, strlen(buffer)) == -1 || write(file, "\n", 1) == -1) {
             const char *error_msg = "Ошибка: не удалось записать в файл\n";
             write(STDERR_FILENO, error_msg, strlen(error_msg));
