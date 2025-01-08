@@ -16,13 +16,22 @@ const char* SEM_PARENT_NAME = "/s_parent";
 const char* SEM_CHILD1_NAME = "/s_child1";
 const char* SEM_CHILD2_NAME = "/s_child2";
 
-int main(int argc, char* argv[]) {
-    return Parent(argc, argv, std::cin);
+int main() {
+    return Parent(std::cin);
 }
 
-int Parent(int argc, char* argv[], std::istream& in) {
-    if (argc < 3) {
-        std::cerr << "Enter the file names correctly" << std::endl;
+int Parent(std::istream& in) {
+    std::string filename1, filename2;
+
+    // Попросим пользователя ввести имена файлов
+    std::cout << "Enter the first file name: ";
+    std::getline(in, filename1);
+    std::cout << "Enter the second file name: ";
+    std::getline(in, filename2);
+
+    // Проверим, что имена файлов не пустые
+    if (filename1.empty() || filename2.empty()) {
+        std::cerr << "Both file names must be provided!" << std::endl;
         return 1;
     }
 
@@ -34,9 +43,6 @@ int Parent(int argc, char* argv[], std::istream& in) {
         perror("sem_open");
         return 1;
     }
-
-    std::string filename1 = argv[1];
-    std::string filename2 = argv[2];
 
     int shm_fd1 = shm_open(SHM_NAME1, O_CREAT | O_RDWR, 0666);
     int shm_fd2 = shm_open(SHM_NAME2, O_CREAT | O_RDWR, 0666);

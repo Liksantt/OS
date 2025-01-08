@@ -3,6 +3,6 @@
 
 #include <iostream>
 
-int Parent(int argc, char* argv[], std::istream& in);
+int Parent(std::istream& in);
 
 #endif // PARENT_H
