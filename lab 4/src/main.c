@@ -32,61 +32,79 @@ int main(int argc, char** argv) {
     AllocatorAPI api;
     void* library_handle = NULL;
 
+    api.allocator_create = default_allocator_create;
+    api.allocator_destroy = default_allocator_destroy;
+    api.allocator_alloc = default_allocator_alloc;
+    api.allocator_free = default_allocator_free;
+
     if (argc > 1) {
         library_handle = dlopen(argv[1], RTLD_LAZY);
-        if (library_handle) {
-            api.allocator_create = dlsym(library_handle, "allocator_create");
-            api.allocator_destroy = dlsym(library_handle, "allocator_destroy");
-            api.allocator_alloc = dlsym(library_handle, "allocator_alloc");
-            api.allocator_free = dlsym(library_handle, "allocator_free");
-        } else {
-            fprintf(stderr, "Failed to load library: %s\n", dlerror());
+        if (!library_handle) {
+            fprintf(stderr, "Ошибка при загрузке библиотеки: %s\n", dlerror());
+            return 1;
+        }
+
+        api.allocator_create = dlsym(library_handle, "allocator_create");
+        api.allocator_destroy = dlsym(library_handle, "allocator_destroy");
+        api.allocator_alloc = dlsym(library_handle, "allocator_alloc");
+        api.allocator_free = dlsym(library_handle, "allocator_free");
+
+        if (!api.allocator_create || !api.allocator_destroy || !api.allocator_alloc || !api.allocator_free) {
+            fprintf(stderr, "Ошибка при загрузке функций из библиотеки: %s\n", dlerror());
+            dlclose(library_handle);
+            return 1;
         }
     } else {
-        fprintf(stderr, "No library path provided. Using default allocator.\n");
+        fprintf(stderr, "Библиотека не указана. Используется стандартный аллокатор.\n");
     }
 
-    if (!library_handle) {
-        api.allocator_create = default_allocator_create;
-        api.allocator_destroy = default_allocator_destroy;
-        api.allocator_alloc = default_allocator_alloc;
-        api.allocator_free = default_allocator_free;
-    }
-
-    size_t pool_size = 1024 * 1024;
+    size_t pool_size = 1024 * 1024;  
     void* memory = mmap(NULL, pool_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
     if (memory == MAP_FAILED) {
-        perror("mmap failed");
+        perror("Ошибка mmap");
         return 1;
     }
 
     void* allocator = api.allocator_create(memory, pool_size);
+    if (!allocator) {
+        fprintf(stderr, "Ошибка при создании аллокатора.\n");
+        munmap(memory, pool_size);
+        return 1;
+    }
 
     struct timespec start, end;
     double time_taken;
 
-    // тестирование выделения памяти
+
     for (int i = 0; i < 3; i++) {
-        size_t block_size = 1024 * (i + 1);  // размер блока увеличивается с каждой итерацией
+        size_t block_size = 1024 * (i + 1);  
 
         clock_gettime(CLOCK_MONOTONIC, &start);
         void* ptr = api.allocator_alloc(allocator, block_size);
         clock_gettime(CLOCK_MONOTONIC, &end);
 
+        if (!ptr) {
+            fprintf(stderr, "Ошибка при выделении памяти для блока размера %zu байт.\n", block_size);
+            break;
+        }
+
         time_taken = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-        printf("Allocated block: %p, size: %zu bytes, time: %.9f seconds\n", ptr, block_size, time_taken);
+        printf("Выделен блок: %p, размер: %zu байт, время: %.11f секунд\n", ptr, block_size, time_taken);
 
         clock_gettime(CLOCK_MONOTONIC, &start);
         api.allocator_free(allocator, ptr);
         clock_gettime(CLOCK_MONOTONIC, &end);
 
         time_taken = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
-        printf("Freed block: %p (id=%d, name=Object %d, value=%.2f), time: %.9f seconds\n",
-               ptr, i + 1, i + 1, (double)(i + 1) * 123.45, time_taken);
+        printf("Освобожден блок: %p, время: %.9f секунд\n", ptr, time_taken);
     }
 
     api.allocator_destroy(allocator);
-    munmap(memory, pool_size);
+
+    if (munmap(memory, pool_size) == -1) {
+        perror("Ошибка при освобождении памяти с помощью munmap");
+        return 1;
+    }
 
     if (library_handle) {
         dlclose(library_handle);
